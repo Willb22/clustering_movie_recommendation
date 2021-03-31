@@ -2,18 +2,26 @@
 
 import pandas as pd
 import numpy as np
+import datetime
+import os
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+import plotly.express as px
+
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from variables import input_dir, output_dir
 
 ################### Parametres simulation ##############################
 remove_col_kmeans_movies = ['id','title','vote_average', 'vote_count']
-trunc_user_high = 800 #nombre max de vues total par user
+trunc_user_high = 80 #nombre max de vues total par user
 trunc_user_low = 20 #nombre min de vues total par user
-trunc_movie_low = 1000
-trunc_movie_high = 100000000
-kmeans_centroid_movies = 3
-kmeans_centroid_users = 6
+trunc_movie_low = 100
+trunc_movie_high = 10000
+coude_centroid_movies = 13
+kmeans_centroid_movies = 4
+coude_centroid_users =9
+kmeans_centroid_users = 5
 n = 5 #nombre de films à recommander
 
 p_c_a = True # Activer ou pas la Principal Component analysis
@@ -30,8 +38,35 @@ a=1
 #plus a augmente et se rapproche de 1, plus l'ecart entre avoir son film préfére dans un cluster ou pas diminue
 b = 0.99 #définir un score de film pour chaque cluster d'utilisateur  : b*moyenne_note + (1-b)*part
 
-##########################################################################
 
+##########################################################################
+date_time = datetime.datetime.now()
+################### fichier output ##############################
+output_dir = "./processed/output_"+ str(date_time) +'/'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+content_file = 'Colonnes retirées de tableau_movies'  + str(remove_col_kmeans_movies) +' \n'
+content_file += 'On retire les utilisateurs ayant vu plus de ' + str(trunc_user_high) +'  films' +' \n'
+content_file += 'On retire les utilisateurs ayant vu moins de ' + str(trunc_user_low) +'  films' +' \n'
+content_file += 'On retire les films vus plus de ' + str(trunc_movie_high) +'  fois' +' \n'
+content_file += 'On retire les films vus moins de ' + str(trunc_movie_low) +'  fois' +' \n'
+content_file += 'Kmeans utilisateur avec parametre de combinaison linéaire ' + str(a) +'  ' +' \n'
+content_file += ' Nombre de centroides Kmeans Movies ' + str(kmeans_centroid_movies) +'  ' +' \n'
+content_file += ' Nombre de centroides Kmeans utilisateur ' + str(kmeans_centroid_users) +'  ' +' \n'
+if p_c_a:
+    content_file += 'Principal Component Analysis activée et réduit à  ' + str(acp_dim ) + ' dimensions' + '\n'
+else:
+    content_file += 'Principal Component Analysis inactive  '
+
+
+
+################### fichier pdf ##############################
+pp = PdfPages(output_dir+ ' Récapitulatif graphiques '+ str(date_time)+ ' .pdf')
+firstPage = plt.figure(figsize=(11.69,8.27))
+firstPage.clf()
+txt = content_file
+firstPage.text(0.5,0.5,txt, transform=firstPage.transFigure, size=12, ha="center")
+pp.savefig()
 
 
 ################### fichier input et output ###############################
@@ -44,9 +79,12 @@ output_dir = output_dir
 
 
 
-################ Lecture et tri de la donnée ########################
+################ Lecture et tri de ratings et tableau_movies ########################
 tableau_movies_full = pd.read_csv(input_dir + "final_data_movie.csv")
-ratings = pd.read_csv(input_dir + "clean_ratings.csv")
+ratings = pd.read_csv(input_dir + "ratings.csv")
+
+################ Filtrer ratings et tableau_movies ########################
+#########Filtrer de ratings les film vus trop ou pas assez
 ratings  = ratings.drop(['timestamp'], axis = 1)
 
 all_movies = list(tableau_movies_full.drop_duplicates("id")["id"])
@@ -65,9 +103,7 @@ del nbr_votes_movie
 #del legit_movies
 del all_movies
 
-tableau_movies = tableau_movies_full.drop(tableau_movies_full[remove_col_kmeans_movies], axis = 1)
-
-#on filtre les utilisateurs qui ont emis trop de votes, ou pas assez dans ratings
+#########Filtrer de ratings les utilisateurs qui ont emis trop de votes, ou pas assez 
 data_user_votes = ratings.groupby(["userId"])["rating"].count().reset_index(name = 'voteCount')
 data_user_votes = data_user_votes[ trunc_user_low  < data_user_votes['voteCount'] ]
 data_user_votes = data_user_votes[  data_user_votes['voteCount'] < trunc_user_high]
@@ -76,10 +112,34 @@ df = data_user_votes.sort_values(by=['voteCount'])
 ratings = ratings[np.isin(ratings['userId'], data_user_votes['userId'])]
 ratings = pd.merge(ratings, tableau_movies_full[["id", "title"]], left_on = "movieId", right_on="id")
 
-del data_user_votes
-del df
-######################################################################
+#########Filtrer de tableau_movies les colonnes inutiles pour le Kmeans
+tableau_movies = tableau_movies_full.drop(tableau_movies_full[remove_col_kmeans_movies], axis = 1)
 
+del data_user_votes
+
+######################################################################
+######################## FIGURE 1 ##############################
+
+fig1 = px.scatter(x=pd.Series(range(0, len(df['userId']))), y=df['voteCount'],
+                  title="Repartition du nombre total de vues par utilisateur",
+                  labels=dict(x="utilisateurs", y="Nombre de vues au total par utilisateur"))
+
+fig1.write_html(output_dir + "Nombre de vues total par utilisateur.html")
+
+######################## Differents graphs pour illustrer ##############################
+# On observe le plus haut rating qu'un utlisateur a offert aux films qu'il a noté
+maxrating = ratings.groupby(["userId"])["rating"].apply(lambda x: max(x)).reset_index()
+
+# fig3 = px.histogram(maxrating, x="rating", title = "Repartition du plus haut score offert par un utilisateur")
+# fig3.update_xaxes(type='category')
+
+# On observe combien de film ont noté les utilisateurs ayant offert un score maximal assez bas
+# df = data_user_votes[np.isin(data_user_votes['userId'], maxrating[maxrating['rating']<4]['userId'])]
+# df = df.sort_values(by = ['voteCount'])
+# fig4 = px.scatter(x=pd.Series(range(0,len(df['userId']))), y=df['voteCount'])
+
+#####################################################################################
+del df
 
 
 
@@ -90,27 +150,47 @@ if p_c_a:
     pca.fit(tableau_movies)
     tableau_movies = pd.DataFrame(pca.transform(tableau_movies))
 
-####################### Kmeans sur le récapiptulatif de films #############################
-
-
 
 
 ####################### Kmeans sur le récapiptulatif de films #############################
 
-#### on lance kmeans avec k clusters défini en parametre de simulation
+
+
+
+##### Critère de Coude pour Kmeans movies
+
+
+######################## Generate Elbow curve Kmeans Movies ##############################
+Inertie = []
+n_centroids = coude_centroid_movies
+for i in range(1, n_centroids):
+    kmeans = KMeans(n_clusters=i).fit(tableau_movies)
+    Inertie.append(kmeans.inertia_)
+
+coude_movies = plt.figure(figsize=(16, 9))
+plt.plot(range(1, n_centroids), Inertie)
+plt.title('Critere de Coude Kmeans movies')
+plt.xlabel('Nombre de clusters')
+plt.ylabel('Inertie')
+coude_movies.show()
+pp.savefig(coude_movies)
+
+
+######################## Apply Kmeans on Movies with number of clusters as a defined parameter #######################
 kmeans = KMeans(n_clusters=kmeans_centroid_movies).fit(tableau_movies)
 centroids = kmeans.cluster_centers_
 
+######################## On ajoute le numero de cluster movies à ratings et à la table tableau_movies_full
+
 movies = pd.DataFrame({'id': tableau_movies_full['id'], 'Kmeans_movies_cluster': kmeans.labels_})
 
-# On ajoute le clustering à la table ratings et à la table tableau_movies_full
 ratings = pd.merge(ratings, movies, left_on = "movieId", right_on = "id")
 tableau_movies_full = pd.merge(tableau_movies_full, movies, left_on = "id", right_on = "id")
-#########################################################################################
 
 
 
-################ Traitement pour le kmeans users ##############################################
+
+######################## Preparer input kmeans users ##############################################
 
 #permet d'avoir une info sur le cluster de film en complément du tableau ratings
 user_movies = ratings.groupby(['userId', 'Kmeans_movies_cluster'])
@@ -124,12 +204,12 @@ for i in range(kmeans_centroid_movies):
     names.append(name)
 df_users.columns= ["userId"] + names 
 
-#On calcule la moyenne des note spar utilisateur afin de ne pas se retrouver avec un clustering de type :
+#On calcule la moyenne des notes par utilisateur afin de ne pas se retrouver avec un clustering de type :
 # groupe des utilisteurs qui notent bien, groupe des utilisateurs qui notent mal ,ect
 
 moy_by_user = ratings.groupby("userId")["rating"].mean().reset_index(name="note_moy_user")
-df_users = pd.merge(df_users, moy_by_user, left_on = "userId", right_on="userId")
-data = df_users
+data =  pd.merge(df_users, moy_by_user, left_on = "userId", right_on="userId")
+
 data = data.drop("userId", axis=1)
 for col in data.drop("note_moy_user", axis=1).columns:
     data[col] = data[col]/data["note_moy_user"]
@@ -150,6 +230,23 @@ del names
 
 
 ############################## Kmeans utilisateurs #######################################
+######################## Coude users ##############################
+Inertie = []
+n_centroids = coude_centroid_users
+for i in range(1, n_centroids):
+    kmeans = KMeans(n_clusters=i).fit(df_kmeans_users)
+    # kmeans.fit(x)
+    Inertie.append(kmeans.inertia_)
+
+coude_users = plt.figure(figsize=(16, 9))
+plt.plot(range(1, n_centroids), Inertie)
+plt.title('Critere de Coude Kmeans utilisateurs')
+plt.xlabel('Nombre de clusters')
+plt.ylabel('Inertie')
+coude_users.show()
+pp.savefig(coude_users)
+
+#### choix du nombre de clusters pour le Kmeans utilisateurs
 kmeans = KMeans(n_clusters=kmeans_centroid_users).fit(df_kmeans_users)
 centroids = kmeans.cluster_centers_
 
@@ -348,4 +445,12 @@ recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 ##Save for graphs
 #c.to_csv("/home/fitec/donnees_films/for_graphs/best_movies_per_cluster.csv", index= False)
 #
+
+
+
+
+##################  FIN DE SIMULATION ###########
+pp.close()
+date_timeend = datetime.datetime.now()
+runtime = date_timeend - date_time
 

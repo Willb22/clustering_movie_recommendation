@@ -7,7 +7,7 @@ import dash_html_components as html
 import base64
 from dash.dependencies import Input, Output
 
-path = "/home/fitec/donnees_films/for_graphs/"
+path = "../traitement/data_csv/"
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 

@@ -1,2 +1,2 @@
-input_dir = "/home/fitec/donnees_films/"
-output_dir = "/home/fitec/donnees_films/recommendations/"
+input_dir = "data_csv/"
+output_dir = "processed/"
