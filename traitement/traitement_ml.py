@@ -155,11 +155,6 @@ if p_c_a:
 ####################### Kmeans sur le récapiptulatif de films #############################
 
 
-
-
-##### Critère de Coude pour Kmeans movies
-
-
 ######################## Generate Elbow curve Kmeans Movies ##############################
 Inertie = []
 n_centroids = coude_centroid_movies
@@ -230,7 +225,8 @@ del names
 
 
 ############################## Kmeans utilisateurs #######################################
-######################## Coude users ##############################
+
+######################## Generate Elbow curve Kmeans Users ##############################
 Inertie = []
 n_centroids = coude_centroid_users
 for i in range(1, n_centroids):
@@ -246,7 +242,8 @@ plt.ylabel('Inertie')
 coude_users.show()
 pp.savefig(coude_users)
 
-#### choix du nombre de clusters pour le Kmeans utilisateurs
+
+######################## Apply Kmeans on Users with number of clusters as a defined parameter #######################
 kmeans = KMeans(n_clusters=kmeans_centroid_users).fit(df_kmeans_users)
 centroids = kmeans.cluster_centers_
 
