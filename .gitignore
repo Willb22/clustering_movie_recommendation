@@ -1,3 +1,4 @@
-traitement/data_csv/*
-traitement/processed/*
+data/raw/*
+data/processed/*
 pieces_a_rendre/*
+scrap.ipynb

@@ -38,11 +38,17 @@ a=1
 #plus a augmente et se rapproche de 1, plus l'ecart entre avoir son film préfére dans un cluster ou pas diminue
 b = 0.99 #définir un score de film pour chaque cluster d'utilisateur  : b*moyenne_note + (1-b)*part
 
+def simulation_output_folder(output, timenow):
+	output_dir = output+"output_"+ str(timenow) +'/'
+	if not os.path.exists(output_dir):
+		os.makedirs(output_dir)
+	return output_dir
+	
 
 ##########################################################################
 date_time = datetime.datetime.now()
 ################### fichier output ##############################
-output_dir = "./processed/output_"+ str(date_time) +'/'
+output_dir += "output_"+ str(date_time) +'/'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 content_file = 'Colonnes retirées de tableau_movies'  + str(remove_col_kmeans_movies) +' \n'
@@ -70,7 +76,8 @@ pp.savefig()
 
 
 ################### fichier input et output ###############################
-input_dir = input_dir
+_raw_input = input_dir
+_processed_input = '../data/processed/'
 output_dir = output_dir
 ################################################################
 
@@ -80,8 +87,8 @@ output_dir = output_dir
 
 
 ################ Lecture et tri de ratings et tableau_movies ########################
-tableau_movies_full = pd.read_csv(input_dir + "final_data_movie.csv")
-ratings = pd.read_csv(input_dir + "ratings.csv")
+tableau_movies_full = pd.read_csv(_processed_input + "final_data_movie.csv")
+ratings = pd.read_csv(_raw_input + "ratings.csv")
 
 ################ Filtrer ratings et tableau_movies ########################
 #########Filtrer de ratings les film vus trop ou pas assez
@@ -385,7 +392,7 @@ recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 
 #import ast
 #
-#a = pd.read_csv("/home/fitec/donnees_films/metadata_carac_speciaux.csv")
+#a = pd.read_csv(_raw_input+"/metadata_carac_speciaux.csv")
 #
 #a=a.dropna(subset=['id'])
 #a=a.dropna(subset=['title'])
