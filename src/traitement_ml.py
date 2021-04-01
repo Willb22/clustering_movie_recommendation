@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import os
+import ast
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import plotly.express as px
@@ -37,6 +38,31 @@ a=1
 # Le score vaut toujours le score moyen qu'il a offert aux films
 #plus a augmente et se rapproche de 1, plus l'ecart entre avoir son film préfére dans un cluster ou pas diminue
 b = 0.99 #définir un score de film pour chaque cluster d'utilisateur  : b*moyenne_note + (1-b)*part
+
+
+def encoding_dic(data, variable, liste):
+
+   serie_col = data[variable]
+   #création de la colonne total : liste des catégories appartenant à la liste pour chaque ligne
+   def add(x, liste_col):
+       total = []
+       if type(x) == str and x[0] == "[":
+           a = ast.literal_eval(x)
+           if len(a) > 0:
+               for j in range(len(a)):
+                   comp = a[j]["name"]
+                   if comp in liste_col:
+                       total.append(comp)
+               if len(total) == 0:
+                   total.append("autre")
+           else:
+               total.append("autre")
+       return total
+   
+   total = serie_col.apply(lambda x : add(x, liste_col = liste))
+   df = serie_col.to_frame()
+   df["total"] = total
+   return df
 
 def simulation_output_folder(output, timenow):
 	output_dir = output+"output_"+ str(timenow) +'/'
@@ -390,64 +416,37 @@ recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 
 #Graphs (à mettre en commentaires)
 
-#import ast
-#
-#a = pd.read_csv(_raw_input+"/metadata_carac_speciaux.csv")
-#
-#a=a.dropna(subset=['id'])
-#a=a.dropna(subset=['title'])
-#a=a.loc[a['status']== 'Released']
-#a=pd.get_dummies(a, columns=["adult"]) 
-#a=a.drop_duplicates()
-#a=a.drop_duplicates(subset='id', keep="first")
-#a=a.drop_duplicates(subset='title', keep="first")
-#a=a.reset_index(drop=True)
-#
-#def encoding_dic(data, variable, liste):
-#
-#    serie_col = data[variable]
-#    #Création de la colonne total : liste des catégories appartenant à la liste pour chaque ligne
-#    def add(x, liste_col):
-#        total = []
-#        if type(x) == str and x[0] == "[":
-#            a = ast.literal_eval(x)
-#            if len(a) > 0:
-#                for j in range(len(a)):
-#                    comp = a[j]["name"]
-#                    if comp in liste_col:
-#                        total.append(comp)
-#                if len(total) == 0:
-#                    total.append("autre")
-#            else:
-#                total.append("autre")
-#        return total
-#    
-#    total = serie_col.apply(lambda x : add(x, liste_col = liste))
-#    df = serie_col.to_frame()
-#    df["total"] = total
-#    return df
-#
-#liste_genre = ['Drama', 'Comedy', 'Thriller', 'Romance', 'Action', 'Horror', 'Crime', 'Documentary']
-#liste_prod_comp = ['WarnerBros.', 'Metro-Goldwyn-MayerMGM', 'ParamountPictures', 'TwentiethCenturyFoxFilmCorporation', 'UniversalPictures', 'ColumbiaPicturesCorporation', 'Canal', 'ColumbiaPictures', 'RKORadioPictures']
-#liste_prod_count = ['UnitedStatesofAmerica', 'null', 'UnitedKingdom', 'France', 'Germany', 'Italy', 'Canada', 'Japan', 'Spain', 'Russia']
-#
-#
-#genres = encoding_dic(a, "genres", liste_genre)
-#genres["genre"] = genres["total"].apply(lambda x :  x[0])
-#prod_comp = encoding_dic(a, "production_companies", liste_prod_comp)
-#prod_comp["prod_comp"] = prod_comp["total"].apply(lambda x :  x[0])
-#prod_count = encoding_dic(a, "production_countries", liste_prod_count)
-#prod_count["prod_count"] = prod_count["total"].apply(lambda x :  x[0])
-#
-#
-#
-#b = pd.concat([a["title"], genres["genre"], prod_comp["prod_comp"], prod_count["prod_count"]], axis = 1)
-#
-#c = pd.merge(best_movies_per_cluster, b, left_on = "title", right_on = "title").sort_values(["Kmeans_user_cluster", "mean"], ascending=False)
-#
-#
+a = pd.read_csv(_raw_input+"/metadata_carac_speciaux.csv")
+
+a=a.dropna(subset=['id'])
+a=a.dropna(subset=['title'])
+a=a.loc[a['status']== 'Released']
+a=pd.get_dummies(a, columns=["adult"]) 
+a=a.drop_duplicates()
+a=a.drop_duplicates(subset='id', keep="first")
+a=a.drop_duplicates(subset='title', keep="first")
+a=a.reset_index(drop=True)
+
+
+
+liste_genre = ['Drama', 'Comedy', 'Thriller', 'Romance', 'Action', 'Horror', 'Crime', 'Documentary']
+liste_prod_comp = ['WarnerBros.', 'Metro-Goldwyn-MayerMGM', 'ParamountPictures', 'TwentiethCenturyFoxFilmCorporation', 'UniversalPictures', 'ColumbiaPicturesCorporation', 'Canal', 'ColumbiaPictures', 'RKORadioPictures']
+liste_prod_count = ['UnitedStatesofAmerica', 'null', 'UnitedKingdom', 'France', 'Germany', 'Italy', 'Canada', 'Japan', 'Spain', 'Russia']
+
+
+genres = encoding_dic(a, "genres", liste_genre)
+genres["genre"] = genres["total"].apply(lambda x :  x[0])
+prod_comp = encoding_dic(a, "production_companies", liste_prod_comp)
+prod_comp["prod_comp"] = prod_comp["total"].apply(lambda x :  x[0])
+prod_count = encoding_dic(a, "production_countries", liste_prod_count)
+prod_count["prod_count"] = prod_count["total"].apply(lambda x :  x[0])
+
+b = pd.concat([a["title"], genres["genre"], prod_comp["prod_comp"], prod_count["prod_count"]], axis = 1)
+
+c = pd.merge(best_movies_per_cluster, b, left_on = "title", right_on = "title").sort_values(["Kmeans_user_cluster", "mean"], ascending=False)
+
 ##Save for graphs
-#c.to_csv("/home/fitec/donnees_films/for_graphs/best_movies_per_cluster.csv", index= False)
+c.to_csv(output_dir+"best_movies_per_cluster.csv", index= False)
 #
 
 
