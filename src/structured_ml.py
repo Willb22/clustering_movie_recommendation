@@ -89,8 +89,6 @@ pp.savefig()
 tableau_movies_full = pd.read_csv(_processed_input + "final_data_movie.csv")
 ratings = pd.read_csv(_raw_input + "ratings.csv")
 
-a = pd.read_csv(_raw_input+"/metadata_carac_speciaux.csv")
-
 
 ################ Filtrer ratings et tableau_movies ########################
 #########Filtrer de ratings les film vus trop ou pas assez
@@ -129,12 +127,19 @@ del data_user_votes
 ######################################################################
 ######################## FIGURE 1 ##############################
 
-fig1 = px.scatter(x=pd.Series(range(0, len(df['userId']))), y=df['voteCount'],
-                  title="Repartition du nombre total de vues par utilisateur",
-                  labels=dict(x="utilisateurs", y="Nombre de vues au total par utilisateur"))
+# fig1 = px.scatter(x=pd.Series(range(0, len(df['userId']))), y=df['voteCount'],
+                  # title="Repartition du nombre total de vues par utilisateur",
+                  # labels=dict(x="utilisateurs", y="Nombre de vues au total par utilisateur"))
 
-fig1.write_html(output_dir + "Nombre de vues total par utilisateur.html")
+# fig1.write_html(output_dir + "Nombre de vues total par utilisateur.html")
 
+
+repartition_vues = plt.figure(figsize=(16, 9))
+plt.plot(pd.Series(range(0, len(df['userId']))), df['voteCount'])
+plt.title("Repartition du nombre total de vues par utilisateur")
+plt.xlabel("utilisateurs")
+plt.ylabel("Nombre de vues au total par utilisateur")
+pp.savefig(repartition_vues )
 ######################## Differents graphs pour illustrer ##############################
 # On observe le plus haut rating qu'un utlisateur a offert aux films qu'il a noté
 maxrating = ratings.groupby(["userId"])["rating"].apply(lambda x: max(x)).reset_index()
@@ -279,76 +284,74 @@ del movies
 ############################### Stats descriptives ############################################
 
 ### moyenne et compte de chaque duo film/cluster user
-links = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].count().reset_index(name="count")
-moyenne = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].mean().reset_index(name="mean")
-variance = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].var().reset_index(name="variance")
-links["mean"] = moyenne["mean"]
-links["variance"] = variance["variance"]
+# links = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].count().reset_index(name="count")
+# moyenne = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].mean().reset_index(name="mean")
+# variance = ratings.groupby(["Kmeans_user_cluster","movieId"])["rating"].var().reset_index(name="variance")
+# links["mean"] = moyenne["mean"]
+# links["variance"] = variance["variance"]
 
-del moyenne
-del variance
+# del moyenne
+# del variance
 
-### récupérer les meilleurs films par cluster user selon la mean
-parmi_combien = 300
-best_movies_per_cluster = links.sort_values(["Kmeans_user_cluster",'mean'],ascending=False).groupby("Kmeans_user_cluster").head(parmi_combien).reset_index(drop=True)
-best_movies_per_cluster["nb_user_cluster"] = pd.merge(best_movies_per_cluster, nb_users_cluster, left_on="Kmeans_user_cluster", right_on = "Kmeans_user_cluster")["rating"]
-best_movies_per_cluster["part"] = (best_movies_per_cluster["count"] / best_movies_per_cluster["nb_user_cluster"]) * 100
-best_movies_per_cluster["score"] = b*best_movies_per_cluster["mean"] + (1-b)*best_movies_per_cluster["part"]
-best_movies_per_cluster = pd.merge(best_movies_per_cluster, tableau_movies_full, left_on = "movieId", right_on = "id")[["title", "Kmeans_user_cluster","Kmeans_movies_cluster", "mean", "part" ,"count", "variance", "nb_user_cluster"]].sort_values(["Kmeans_user_cluster", "mean"], ascending = False).reset_index()
+# ### récupérer les meilleurs films par cluster user selon la mean
+# parmi_combien = 300
+# best_movies_per_cluster = links.sort_values(["Kmeans_user_cluster",'mean'],ascending=False).groupby("Kmeans_user_cluster").head(parmi_combien).reset_index(drop=True)
+# best_movies_per_cluster["nb_user_cluster"] = pd.merge(best_movies_per_cluster, nb_users_cluster, left_on="Kmeans_user_cluster", right_on = "Kmeans_user_cluster")["rating"]
+# best_movies_per_cluster["part"] = (best_movies_per_cluster["count"] / best_movies_per_cluster["nb_user_cluster"]) * 100
+# best_movies_per_cluster["score"] = b*best_movies_per_cluster["mean"] + (1-b)*best_movies_per_cluster["part"]
+# best_movies_per_cluster = pd.merge(best_movies_per_cluster, tableau_movies_full, left_on = "movieId", right_on = "id")[["title", "Kmeans_user_cluster","Kmeans_movies_cluster", "mean", "part" ,"count", "variance", "nb_user_cluster"]].sort_values(["Kmeans_user_cluster", "mean"], ascending = False).reset_index()
 
-# Lien cluster movies, cluster user
-contingence_clusteruser_clustermovie = best_movies_per_cluster.groupby(["Kmeans_user_cluster", "Kmeans_movies_cluster"])["mean"].count().reset_index(name="count_per_cluster")
-contingence_clusteruser_clustermovie = contingence_clusteruser_clustermovie.pivot(index = "Kmeans_user_cluster", columns = "Kmeans_movies_cluster", values = "count_per_cluster")
+# # Lien cluster movies, cluster user
+# contingence_clusteruser_clustermovie = best_movies_per_cluster.groupby(["Kmeans_user_cluster", "Kmeans_movies_cluster"])["mean"].count().reset_index(name="count_per_cluster")
+# contingence_clusteruser_clustermovie = contingence_clusteruser_clustermovie.pivot(index = "Kmeans_user_cluster", columns = "Kmeans_movies_cluster", values = "count_per_cluster")
 
-# visualisation des meilleurs films par cluster
-visualisation_meilleurs_film_par_cluster = best_movies_per_cluster.pivot( columns = 'Kmeans_user_cluster', values ="title" )
+# # visualisation des meilleurs films par cluster
+# visualisation_meilleurs_film_par_cluster = best_movies_per_cluster.pivot( columns = 'Kmeans_user_cluster', values ="title" )
 
-for i in range(kmeans_centroid_users):
-    index = (kmeans_centroid_users - 1 - i) *parmi_combien
-    values = visualisation_meilleurs_film_par_cluster.loc[index:index+parmi_combien-1,i].reset_index(drop=True)
-    visualisation_meilleurs_film_par_cluster[i] = values
+# for i in range(kmeans_centroid_users):
+    # index = (kmeans_centroid_users - 1 - i) *parmi_combien
+    # values = visualisation_meilleurs_film_par_cluster.loc[index:index+parmi_combien-1,i].reset_index(drop=True)
+    # visualisation_meilleurs_film_par_cluster[i] = values
     
-visualisation_meilleurs_film_par_cluster = visualisation_meilleurs_film_par_cluster[0:parmi_combien-1]
-####################################################################################################
+# visualisation_meilleurs_film_par_cluster = visualisation_meilleurs_film_par_cluster[0:parmi_combien-1]
+# ####################################################################################################
 
 
 
 
-############################ Recommendations pour chaque utilisateur ###############################
-# On veut maintenant recommander n films  à chaque utilisateur
-# On commence par le meilleur film selon son groupe et on descend jusqu'à qu'il y ait n films à lui recommander
+# ############################ Recommendations pour chaque utilisateur ###############################
+# # On veut maintenant recommander n films  à chaque utilisateur
+# # On commence par le meilleur film selon son groupe et on descend jusqu'à qu'il y ait n films à lui recommander
 
-def delete_if_in_other(row):
-    return [x for x in row["recommended"] if x not in row["title"]][0:n]
+# def delete_if_in_other(row):
+    # return [x for x in row["recommended"] if x not in row["title"]][0:n]
 
-def recommendations():
-    for i in range(kmeans_centroid_users):
-        films = list(best_movies_per_cluster[best_movies_per_cluster["Kmeans_user_cluster"]==i]["title"])
-        users = ratings[ratings["Kmeans_user_cluster"]==i]
-        user_movie_list = users.groupby("userId")["title"].apply(list).reset_index()
-        user_movie_list["recommended"] = [films for _ in range(len(user_movie_list))]
-        user_movie_list["recommended"] = user_movie_list.apply(delete_if_in_other, axis=1)
-        user_movie_list = user_movie_list.drop("title", axis=1)
+# def recommendations():
+    # for i in range(kmeans_centroid_users):
+        # films = list(best_movies_per_cluster[best_movies_per_cluster["Kmeans_user_cluster"]==i]["title"])
+        # users = ratings[ratings["Kmeans_user_cluster"]==i]
+        # user_movie_list = users.groupby("userId")["title"].apply(list).reset_index()
+        # user_movie_list["recommended"] = [films for _ in range(len(user_movie_list))]
+        # user_movie_list["recommended"] = user_movie_list.apply(delete_if_in_other, axis=1)
+        # user_movie_list = user_movie_list.drop("title", axis=1)
         
-        if i == 0:
-            toutes_les_recommendations = user_movie_list
-        else:
-            toutes_les_recommendations = pd.concat([toutes_les_recommendations, user_movie_list])
+        # if i == 0:
+            # toutes_les_recommendations = user_movie_list
+        # else:
+            # toutes_les_recommendations = pd.concat([toutes_les_recommendations, user_movie_list])
     
-    del user_movie_list
-    del films
-    del users
-    return toutes_les_recommendations
+    # del user_movie_list
+    # del films
+    # del users
+    # return toutes_les_recommendations
 
-recommendations = recommendations()
-
-
+# recommendations = recommendations()
 
 
-# Sauvegarde des recommendations
-recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 
 
+# # Sauvegarde des recommendations
+# recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 
 
 
@@ -390,38 +393,42 @@ recommendations.to_csv(output_dir + "recommendations.csv", index= False)
 
 
 
-#Graphs (à mettre en commentaires)
-
-a=a.dropna(subset=['id'])
-a=a.dropna(subset=['title'])
-a=a.loc[a['status']== 'Released']
-a=pd.get_dummies(a, columns=["adult"]) 
-a=a.drop_duplicates()
-a=a.drop_duplicates(subset='id', keep="first")
-a=a.drop_duplicates(subset='title', keep="first")
-a=a.reset_index(drop=True)
 
 
+# #Graphs (à mettre en commentaires)
 
-liste_genre = ['Drama', 'Comedy', 'Thriller', 'Romance', 'Action', 'Horror', 'Crime', 'Documentary']
-liste_prod_comp = ['WarnerBros.', 'Metro-Goldwyn-MayerMGM', 'ParamountPictures', 'TwentiethCenturyFoxFilmCorporation', 'UniversalPictures', 'ColumbiaPicturesCorporation', 'Canal', 'ColumbiaPictures', 'RKORadioPictures']
-liste_prod_count = ['UnitedStatesofAmerica', 'null', 'UnitedKingdom', 'France', 'Germany', 'Italy', 'Canada', 'Japan', 'Spain', 'Russia']
+# a = pd.read_csv(_raw_input+"/metadata_carac_speciaux.csv")
+
+# a=a.dropna(subset=['id'])
+# a=a.dropna(subset=['title'])
+# a=a.loc[a['status']== 'Released']
+# a=pd.get_dummies(a, columns=["adult"]) 
+# a=a.drop_duplicates()
+# a=a.drop_duplicates(subset='id', keep="first")
+# a=a.drop_duplicates(subset='title', keep="first")
+# a=a.reset_index(drop=True)
 
 
-genres = encoding_dic(a, "genres", liste_genre)
-genres["genre"] = genres["total"].apply(lambda x :  x[0])
-prod_comp = encoding_dic(a, "production_companies", liste_prod_comp)
-prod_comp["prod_comp"] = prod_comp["total"].apply(lambda x :  x[0])
-prod_count = encoding_dic(a, "production_countries", liste_prod_count)
-prod_count["prod_count"] = prod_count["total"].apply(lambda x :  x[0])
 
-b = pd.concat([a["title"], genres["genre"], prod_comp["prod_comp"], prod_count["prod_count"]], axis = 1)
+# liste_genre = ['Drama', 'Comedy', 'Thriller', 'Romance', 'Action', 'Horror', 'Crime', 'Documentary']
+# liste_prod_comp = ['WarnerBros.', 'Metro-Goldwyn-MayerMGM', 'ParamountPictures', 'TwentiethCenturyFoxFilmCorporation', 'UniversalPictures', 'ColumbiaPicturesCorporation', 'Canal', 'ColumbiaPictures', 'RKORadioPictures']
+# liste_prod_count = ['UnitedStatesofAmerica', 'null', 'UnitedKingdom', 'France', 'Germany', 'Italy', 'Canada', 'Japan', 'Spain', 'Russia']
 
-c = pd.merge(best_movies_per_cluster, b, left_on = "title", right_on = "title").sort_values(["Kmeans_user_cluster", "mean"], ascending=False)
 
-##Save for graphs
-c.to_csv(output_dir+"best_movies_per_cluster.csv", index= False)
-#
+# genres = encoding_dic(a, "genres", liste_genre)
+# genres["genre"] = genres["total"].apply(lambda x :  x[0])
+# prod_comp = encoding_dic(a, "production_companies", liste_prod_comp)
+# prod_comp["prod_comp"] = prod_comp["total"].apply(lambda x :  x[0])
+# prod_count = encoding_dic(a, "production_countries", liste_prod_count)
+# prod_count["prod_count"] = prod_count["total"].apply(lambda x :  x[0])
+
+# b = pd.concat([a["title"], genres["genre"], prod_comp["prod_comp"], prod_count["prod_count"]], axis = 1)
+
+# c = pd.merge(best_movies_per_cluster, b, left_on = "title", right_on = "title").sort_values(["Kmeans_user_cluster", "mean"], ascending=False)
+
+# ##Save for graphs
+# c.to_csv(output_dir+"best_movies_per_cluster.csv", index= False)
+# #
 
 
 
