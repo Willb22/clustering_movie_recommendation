@@ -12,7 +12,7 @@ import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from variables import input_dir, output_dir
-from functions import encoding_dic, simulation_output_folder
+from functions import encoding_dic, simulation_output_folder, filter_ratings
 
 ################### Parametres simulation ##############################
 remove_col_kmeans_movies = ['id','title','vote_average', 'vote_count']
@@ -51,9 +51,7 @@ _raw_input = input_dir
 _processed_input = '../data/processed/'
 output_dir = simulation_output_folder(output = output_dir, timenow = date_time)
 ################################################################
-# output_dir += "output_"+ str(date_time) +'/'
-# if not os.path.exists(output_dir):
-    # os.makedirs(output_dir)
+
     
 content_file = 'Colonnes retirées de tableau_movies'  + str(remove_col_kmeans_movies) +' \n'
 content_file += 'On retire les utilisateurs ayant vu plus de ' + str(trunc_user_high) +'  films' +' \n'
@@ -79,7 +77,13 @@ firstPage.text(0.5,0.5,txt, transform=firstPage.transFigure, size=12, ha="center
 pp.savefig()
 
 
-
+def add_figure_pdf( x, y, title, xlabel, ylabel):
+	name = plt.figure(figsize=(16, 9))
+	plt.plot(x, y)
+	plt.title(title)
+	plt.xlabel(xlabel)
+	plt.ylabel(ylabel)
+	pp.savefig(name)
 
 
 
@@ -91,30 +95,27 @@ ratings = pd.read_csv(_raw_input + "ratings.csv")
 
 
 ################ Filtrer ratings et tableau_movies ########################
-#########Filtrer de ratings les film vus trop ou pas assez
+
 ratings  = ratings.drop(['timestamp'], axis = 1)
 
 all_movies = list(tableau_movies_full.drop_duplicates("id")["id"])
 ratings = ratings[ratings["movieId"].isin(all_movies)]
-
-nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "count_movie")
-ratings = pd.merge(ratings, nbr_votes_movie, left_on="movieId", right_on='movieId', how='inner')
-ratings = ratings[ratings["count_movie"]>trunc_movie_low]
-ratings = ratings[ratings["count_movie"]<trunc_movie_high]
-ratings = ratings.drop("count_movie", axis= 1)
-
-#legit_movies = list(ratings.drop_duplicates("movieId")["movieId"])
-#tableau_movies = tableau_movies_full[tableau_movies_full["id"].isin(legit_movies)]
-
-del nbr_votes_movie
-#del legit_movies
 del all_movies
+ratings = filter_ratings (ratings, tableau_movies_full, trunc_movie_high, trunc_movie_low, trunc_user_high, trunc_user_low)
+
+# nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "count_movie")
+# ratings = pd.merge(ratings, nbr_votes_movie, left_on="movieId", right_on='movieId', how='inner')
+# ratings = ratings[ratings["count_movie"]>trunc_movie_low]
+# ratings = ratings[ratings["count_movie"]<trunc_movie_high]
+# ratings = ratings.drop("count_movie", axis= 1)
+
+
 
 #########Filtrer de ratings les utilisateurs qui ont emis trop de votes, ou pas assez 
 data_user_votes = ratings.groupby(["userId"])["rating"].count().reset_index(name = 'voteCount')
 data_user_votes = data_user_votes[ trunc_user_low  < data_user_votes['voteCount'] ]
 data_user_votes = data_user_votes[  data_user_votes['voteCount'] < trunc_user_high]
-df = data_user_votes.sort_values(by=['voteCount'])
+df = data_user_votes.sort_values(by=['voteCount']) #utilisé pour le graphique
 
 ratings = ratings[np.isin(ratings['userId'], data_user_votes['userId'])]
 ratings = pd.merge(ratings, tableau_movies_full[["id", "title"]], left_on = "movieId", right_on="id")
@@ -127,33 +128,15 @@ del data_user_votes
 ######################################################################
 ######################## FIGURE 1 ##############################
 
-# fig1 = px.scatter(x=pd.Series(range(0, len(df['userId']))), y=df['voteCount'],
-                  # title="Repartition du nombre total de vues par utilisateur",
-                  # labels=dict(x="utilisateurs", y="Nombre de vues au total par utilisateur"))
-
-# fig1.write_html(output_dir + "Nombre de vues total par utilisateur.html")
 
 
-repartition_vues = plt.figure(figsize=(16, 9))
-plt.plot(pd.Series(range(0, len(df['userId']))), df['voteCount'])
-plt.title("Repartition du nombre total de vues par utilisateur")
-plt.xlabel("utilisateurs")
-plt.ylabel("Nombre de vues au total par utilisateur")
-pp.savefig(repartition_vues )
-######################## Differents graphs pour illustrer ##############################
-# On observe le plus haut rating qu'un utlisateur a offert aux films qu'il a noté
-maxrating = ratings.groupby(["userId"])["rating"].apply(lambda x: max(x)).reset_index()
+add_figure_pdf(x= pd.Series(range(0, len(df['userId']))),y= df['voteCount'], title = "Repartition du nombre total de vues par utilisateur", xlabel = "utilisateurs", ylabel = "Nombre de vues au total par utilisateur")
+del df
 
-# fig3 = px.histogram(maxrating, x="rating", title = "Repartition du plus haut score offert par un utilisateur")
-# fig3.update_xaxes(type='category')
 
-# On observe combien de film ont noté les utilisateurs ayant offert un score maximal assez bas
-# df = data_user_votes[np.isin(data_user_votes['userId'], maxrating[maxrating['rating']<4]['userId'])]
-# df = df.sort_values(by = ['voteCount'])
-# fig4 = px.scatter(x=pd.Series(range(0,len(df['userId']))), y=df['voteCount'])
 
 #####################################################################################
-del df
+
 
 
 
@@ -176,13 +159,8 @@ for i in range(1, n_centroids):
     kmeans = KMeans(n_clusters=i).fit(tableau_movies)
     Inertie.append(kmeans.inertia_)
 
-coude_movies = plt.figure(figsize=(16, 9))
-plt.plot(range(1, n_centroids), Inertie)
-plt.title('Critere de Coude Kmeans movies')
-plt.xlabel('Nombre de clusters')
-plt.ylabel('Inertie')
-coude_movies.show()
-pp.savefig(coude_movies)
+add_figure_pdf(x = range(1, n_centroids), y=Inertie, title = 'Critere de Coude Kmeans movies', xlabel ='Nombre de clusters', ylabel = 'Inertie')
+
 
 
 ######################## Apply Kmeans on Movies with number of clusters as a defined parameter #######################
@@ -248,13 +226,16 @@ for i in range(1, n_centroids):
     # kmeans.fit(x)
     Inertie.append(kmeans.inertia_)
 
-coude_users = plt.figure(figsize=(16, 9))
-plt.plot(range(1, n_centroids), Inertie)
-plt.title('Critere de Coude Kmeans utilisateurs')
-plt.xlabel('Nombre de clusters')
-plt.ylabel('Inertie')
-coude_users.show()
-pp.savefig(coude_users)
+add_figure_pdf(x = range(1, n_centroids), y=Inertie, title = 'Critere de Coude Kmeans utilisateurs', xlabel ='Nombre de clusters', ylabel = 'Inertie')
+
+
+# coude_users = plt.figure(figsize=(16, 9))
+# plt.plot(range(1, n_centroids), Inertie)
+# plt.title('Critere de Coude Kmeans utilisateurs')
+# plt.xlabel('Nombre de clusters')
+# plt.ylabel('Inertie')
+# coude_users.show()
+# pp.savefig(coude_users)
 
 
 ######################## Apply Kmeans on Users with number of clusters as a defined parameter #######################
