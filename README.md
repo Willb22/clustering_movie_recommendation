@@ -9,3 +9,12 @@ Etapes:
 
 Vous trouverez différents scripts dans le dossier analyse_de_la_donnee nous ayant permi d'analyser la donnée afin de savoir comment la nettoyer et la modéliser.
 Définir l'input directory et l'output directory dans /traitement/variables/py.
+
+
+This project requires the following datasets from https://www.kaggle.com/rounakbanik/the-movies-dataset
+ratings.csv
+movies_metadata.csv keywords.csv
+links.csv
+credits.csv
+This requires to authenticate and log in to Kaggle for the download
+
