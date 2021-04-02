@@ -19,7 +19,7 @@ remove_col_kmeans_movies = ['id','title','vote_average', 'vote_count']
 trunc_user_high = 80 #nombre max de vues total par user
 trunc_user_low = 20 #nombre min de vues total par user
 trunc_movie_low = 100
-trunc_movie_high = 10000
+trunc_movie_high = 1200
 coude_centroid_movies = 13
 kmeans_centroid_movies = 4
 coude_centroid_users =9
@@ -97,41 +97,48 @@ ratings = pd.read_csv(_raw_input + "ratings.csv")
 ################ Filtrer ratings et tableau_movies ########################
 
 ratings  = ratings.drop(['timestamp'], axis = 1)
-
-all_movies = list(tableau_movies_full.drop_duplicates("id")["id"])
+tableau_movies_full = tableau_movies_full.drop_duplicates("id")
+all_movies = list(tableau_movies_full["id"])
 ratings = ratings[ratings["movieId"].isin(all_movies)]
 del all_movies
-ratings = filter_ratings (ratings, tableau_movies_full, trunc_movie_high, trunc_movie_low, trunc_user_high, trunc_user_low)
-
-# nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "count_movie")
+filtered_dict = filter_ratings (ratings, trunc_movie_high, trunc_movie_low, trunc_user_high, trunc_user_low)
+ratings = filtered_dict['ratings']
+movie_views = filtered_dict['movie_views']
+user_votes = filtered_dict['user_votes']
+del filtered_dict
+# nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "movie_view_count")
 # ratings = pd.merge(ratings, nbr_votes_movie, left_on="movieId", right_on='movieId', how='inner')
-# ratings = ratings[ratings["count_movie"]>trunc_movie_low]
-# ratings = ratings[ratings["count_movie"]<trunc_movie_high]
-# ratings = ratings.drop("count_movie", axis= 1)
+# ratings = ratings[ratings["movie_view_count"]>trunc_movie_low]
+# ratings = ratings[ratings["movie_view_count"]<trunc_movie_high]
+# ratings = ratings.drop("movie_view_count", axis= 1)
 
 
 
 #########Filtrer de ratings les utilisateurs qui ont emis trop de votes, ou pas assez 
-data_user_votes = ratings.groupby(["userId"])["rating"].count().reset_index(name = 'voteCount')
-data_user_votes = data_user_votes[ trunc_user_low  < data_user_votes['voteCount'] ]
-data_user_votes = data_user_votes[  data_user_votes['voteCount'] < trunc_user_high]
-df = data_user_votes.sort_values(by=['voteCount']) #utilisé pour le graphique
+# data_user_votes = ratings.groupby(["userId"])["rating"].count().reset_index(name = 'voteCount')
+# data_user_votes = data_user_votes[ trunc_user_low  < data_user_votes['voteCount'] ]
+# data_user_votes = data_user_votes[  data_user_votes['voteCount'] < trunc_user_high]
+# df = data_user_votes.sort_values(by=['voteCount']) #utilisé pour le graphique
 
-ratings = ratings[np.isin(ratings['userId'], data_user_votes['userId'])]
+# ratings = ratings[np.isin(ratings['userId'], data_user_votes['userId'])]
+
+
+#####  Add movie titles to ratings
 ratings = pd.merge(ratings, tableau_movies_full[["id", "title"]], left_on = "movieId", right_on="id")
 
 #########Filtrer de tableau_movies les colonnes inutiles pour le Kmeans
 tableau_movies = tableau_movies_full.drop(tableau_movies_full[remove_col_kmeans_movies], axis = 1)
 
-del data_user_votes
+#del data_user_votes
 
 ######################################################################
 ######################## FIGURE 1 ##############################
 
 
 
-add_figure_pdf(x= pd.Series(range(0, len(df['userId']))),y= df['voteCount'], title = "Repartition du nombre total de vues par utilisateur", xlabel = "utilisateurs", ylabel = "Nombre de vues au total par utilisateur")
-del df
+add_figure_pdf(x= pd.Series(range(0, len(user_votes['userId']))),y= user_votes['voteCount'], title = "Repartition du nombre total de vues par utilisateur", xlabel = "utilisateurs", ylabel = "Nombre de vues au total par utilisateur")
+#del df
+add_figure_pdf(x= pd.Series(range(0, len(movie_views['movieId']))),y= movie_views['movie_view_count'], title = "Repartition du nombre total de vues par film", xlabel = "movies", ylabel ="Nombre de vues par film")
 
 
 
@@ -140,7 +147,7 @@ del df
 
 
 
-####################### Principle Component Analysis #####################################
+# ####################### Principle Component Analysis #####################################
 
 if p_c_a:
     pca = PCA(n_components=acp_dim, random_state=80)
@@ -228,14 +235,6 @@ for i in range(1, n_centroids):
 
 add_figure_pdf(x = range(1, n_centroids), y=Inertie, title = 'Critere de Coude Kmeans utilisateurs', xlabel ='Nombre de clusters', ylabel = 'Inertie')
 
-
-# coude_users = plt.figure(figsize=(16, 9))
-# plt.plot(range(1, n_centroids), Inertie)
-# plt.title('Critere de Coude Kmeans utilisateurs')
-# plt.xlabel('Nombre de clusters')
-# plt.ylabel('Inertie')
-# coude_users.show()
-# pp.savefig(coude_users)
 
 
 ######################## Apply Kmeans on Users with number of clusters as a defined parameter #######################
