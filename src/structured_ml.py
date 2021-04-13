@@ -12,7 +12,7 @@ import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from variables import input_dir, output_dir
-from functions import encoding_dic, simulation_output_folder, filter_ratings
+from functions import encoding_dic, simulation_output_folder, filter_ratings, create_kmeans_user_input, generate_kmeans_inertia
 
 ################### Parametres simulation ##############################
 remove_col_kmeans_movies = ['id','title','vote_average', 'vote_count']
@@ -106,21 +106,8 @@ ratings = filtered_dict['ratings']
 movie_views = filtered_dict['movie_views']
 user_votes = filtered_dict['user_votes']
 del filtered_dict
-# nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "movie_view_count")
-# ratings = pd.merge(ratings, nbr_votes_movie, left_on="movieId", right_on='movieId', how='inner')
-# ratings = ratings[ratings["movie_view_count"]>trunc_movie_low]
-# ratings = ratings[ratings["movie_view_count"]<trunc_movie_high]
-# ratings = ratings.drop("movie_view_count", axis= 1)
 
 
-
-#########Filtrer de ratings les utilisateurs qui ont emis trop de votes, ou pas assez 
-# data_user_votes = ratings.groupby(["userId"])["rating"].count().reset_index(name = 'voteCount')
-# data_user_votes = data_user_votes[ trunc_user_low  < data_user_votes['voteCount'] ]
-# data_user_votes = data_user_votes[  data_user_votes['voteCount'] < trunc_user_high]
-# df = data_user_votes.sort_values(by=['voteCount']) #utilisé pour le graphique
-
-# ratings = ratings[np.isin(ratings['userId'], data_user_votes['userId'])]
 
 
 #####  Add movie titles to ratings
@@ -132,7 +119,7 @@ tableau_movies = tableau_movies_full.drop(tableau_movies_full[remove_col_kmeans_
 #del data_user_votes
 
 ######################################################################
-######################## FIGURE 1 ##############################
+######################## FIGURE ##############################
 
 
 
@@ -160,13 +147,14 @@ if p_c_a:
 
 
 ######################## Generate Elbow curve Kmeans Movies ##############################
-Inertie = []
-n_centroids = coude_centroid_movies
-for i in range(1, n_centroids):
-    kmeans = KMeans(n_clusters=i).fit(tableau_movies)
-    Inertie.append(kmeans.inertia_)
+Inertie = generate_kmeans_inertia( coude_centroid_movies, tableau_movies)
 
-add_figure_pdf(x = range(1, n_centroids), y=Inertie, title = 'Critere de Coude Kmeans movies', xlabel ='Nombre de clusters', ylabel = 'Inertie')
+# n_centroids = coude_centroid_movies
+# for i in range(1, n_centroids):
+    # kmeans = KMeans(n_clusters=i).fit(tableau_movies)
+    # Inertie.append(kmeans.inertia_)
+
+add_figure_pdf(x = range(1, coude_centroid_movies), y=Inertie, title = 'Critere de Coude Kmeans movies', xlabel ='Nombre de clusters', ylabel = 'Inertie')
 
 
 
@@ -185,38 +173,40 @@ tableau_movies_full = pd.merge(tableau_movies_full, movies, left_on = "id", righ
 
 
 ######################## Preparer input kmeans users ##############################################
+##permet d'avoir une info sur le cluster de film en complément du tableau ratings
 
-#permet d'avoir une info sur le cluster de film en complément du tableau ratings
-user_movies = ratings.groupby(['userId', 'Kmeans_movies_cluster'])
-df_score = user_movies['rating'].apply(lambda x : (1-a)*float(5) + a*sum(list(x))/len(list(x)) if float(5) in list(x) else sum(list(x))/len(list(x))).reset_index(name = 'score')
-df_users = df_score.pivot(index = 'userId', columns = 'Kmeans_movies_cluster').reset_index()
-df_users = df_users.replace(np.nan, 0)
+df_kmeans_users_ids = create_kmeans_user_input(ratings,kmeans_centroid_movies, a)
+#df_kmeans_users = df_kmeans_users_ids.drop("userId", axis=1)
+# user_movies = ratings.groupby(['userId', 'Kmeans_movies_cluster'])
+# df_score = user_movies['rating'].apply(lambda x : (1-a)*float(5) + a*sum(list(x))/len(list(x)) if float(5) in list(x) else sum(list(x))/len(list(x))).reset_index(name = 'score')
+# df_users = df_score.pivot(index = 'userId', columns = 'Kmeans_movies_cluster').reset_index()
+# df_users = df_users.replace(np.nan, 0)
 
-names = []
-for i in range(kmeans_centroid_movies):
-    name = "k"+str(i)
-    names.append(name)
-df_users.columns= ["userId"] + names 
+# names = []
+# for i in range(kmeans_centroid_movies):
+    # name = "k"+str(i)
+    # names.append(name)
+# df_users.columns= ["userId"] + names # flatten multi-index columns from pivot operation
 
-#On calcule la moyenne des notes par utilisateur afin de ne pas se retrouver avec un clustering de type :
-# groupe des utilisteurs qui notent bien, groupe des utilisateurs qui notent mal ,ect
+# #On calcule la moyenne des notes par utilisateur afin de ne pas se retrouver avec un clustering de type :
+# # groupe des utilisteurs qui notent bien, groupe des utilisateurs qui notent mal ,ect
 
-moy_by_user = ratings.groupby("userId")["rating"].mean().reset_index(name="note_moy_user")
-data =  pd.merge(df_users, moy_by_user, left_on = "userId", right_on="userId")
+# moy_by_user = ratings.groupby("userId")["rating"].mean().reset_index(name="note_moy_user")
+# data =  pd.merge(df_users, moy_by_user, left_on = "userId", right_on="userId")
 
-data = data.drop("userId", axis=1)
-for col in data.drop("note_moy_user", axis=1).columns:
-    data[col] = data[col]/data["note_moy_user"]
-data = data.drop("note_moy_user", axis=1)
-data = data.replace(0, 1)
+# data = data.drop("userId", axis=1)
+# for col in data.drop("note_moy_user", axis=1).columns:
+    # data[col] = data[col]/data["note_moy_user"]
+# data = data.drop("note_moy_user", axis=1)
+# data = data.replace(0, 1)
 
 
-df_kmeans_users = data
+# df_kmeans_users = data
 
-del moy_by_user
-del df_score
-del data
-del names
+# del moy_by_user
+# del df_score
+# del data
+# del names
 #################################################################################################
 
 
@@ -226,22 +216,22 @@ del names
 ############################## Kmeans utilisateurs #######################################
 
 ######################## Generate Elbow curve Kmeans Users ##############################
-Inertie = []
-n_centroids = coude_centroid_users
-for i in range(1, n_centroids):
-    kmeans = KMeans(n_clusters=i).fit(df_kmeans_users)
-    # kmeans.fit(x)
-    Inertie.append(kmeans.inertia_)
+Inertie = generate_kmeans_inertia( coude_centroid_users, df_kmeans_users_ids.loc[ : , df_kmeans_users_ids.columns != 'userId'] ) 
+# n_centroids = coude_centroid_users
+# for i in range(1, n_centroids):
+    # kmeans = KMeans(n_clusters=i).fit(df_kmeans_users.loc[ : , df_kmeans_users.columns != 'userId'])
+    # Inertie.append(kmeans.inertia_)
 
-add_figure_pdf(x = range(1, n_centroids), y=Inertie, title = 'Critere de Coude Kmeans utilisateurs', xlabel ='Nombre de clusters', ylabel = 'Inertie')
+add_figure_pdf(x = range(1, coude_centroid_users), y=Inertie, title = 'Critere de Coude Kmeans utilisateurs', xlabel ='Nombre de clusters', ylabel = 'Inertie')
 
 
 
 ######################## Apply Kmeans on Users with number of clusters as a defined parameter #######################
-kmeans = KMeans(n_clusters=kmeans_centroid_users).fit(df_kmeans_users)
+kmeans = KMeans(n_clusters=kmeans_centroid_users).fit(df_kmeans_users_ids.loc[ : , df_kmeans_users_ids.columns != 'userId'])
 centroids = kmeans.cluster_centers_
 
-user_clusters = pd.DataFrame({'userId': df_users["userId"], 'Kmeans_user_cluster': kmeans.labels_})
+#user_clusters = pd.DataFrame({'userId': df_users["userId"], 'Kmeans_user_cluster': kmeans.labels_})
+user_clusters = pd.DataFrame({'userId': df_kmeans_users_ids["userId"], 'Kmeans_user_cluster': kmeans.labels_}) #use of function 
 # On ajoute le clustering à la tale ratings
 ratings = pd.merge(ratings, user_clusters, left_on="userId", right_on="userId")
 
@@ -252,8 +242,8 @@ nb_users_cluster = ratings.drop_duplicates("userId").groupby('Kmeans_user_cluste
 
 
 del user_clusters
-del df_kmeans_users
-del df_users
+#del df_kmeans_users
+#del df_users
 del movies
 ###########################################################################################
 
