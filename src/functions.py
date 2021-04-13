@@ -41,23 +41,13 @@ def simulation_output_folder(output, timenow):
 	return output_dir
 	
 
-# def filter_ratings (ratings, tableau_movies_full, trunc_movie_high, trunc_movie_low, trunc_user_high, trunc_user_low):
-	
-	
-	# #########Filtrer de ratings les film vus trop ou pas assez
-	# nbr_votes_movie = ratings.groupby("movieId")["movieId"].count().reset_index(name= "movie_view_count")
-	# ratings = pd.merge(ratings, nbr_votes_movie, left_on="movieId", right_on='movieId', how='inner')
-	# ratings = ratings[ratings["movie_view_count"]>trunc_movie_low]
-	# ratings = ratings[ratings["movie_view_count"]<trunc_movie_high]
-	# ratings = ratings.drop("movie_view_count", axis= 1)
-	
-	# return ratings
 
 
 def filter_ratings (ratings, trunc_movie_high, trunc_movie_low, trunc_user_high, trunc_user_low):
 	
 	
 	#########Filtrer de ratings les film vus trop ou pas assez
+	#########Filtrer de ratings les utilisateurs qui ont vus trop ou pas assez de films
 	movie_views = ratings.groupby("movieId")["movieId"].count().reset_index(name= "movie_view_count")
 	ratings = pd.merge(ratings, movie_views, left_on="movieId", right_on='movieId', how='inner')
 	ratings = ratings[ratings["movie_view_count"]>trunc_movie_low]
@@ -92,3 +82,41 @@ def apply_pca(dimensions, table):
 	# plt.xlabel(xlabel)
 	# plt.ylabel(ylabel)
 	# pp.savefig(name)
+
+def create_kmeans_user_input(ratings,kmeans_centroid_movies, a):
+	user_movies = ratings.groupby(['userId', 'Kmeans_movies_cluster'])
+	df_score = user_movies['rating'].apply(lambda x : (1-a)*float(5) + a*sum(list(x))/len(list(x)) if float(5) in list(x) else sum(list(x))/len(list(x))).reset_index(name = 'score')
+	df_users = df_score.pivot(index = 'userId', columns = 'Kmeans_movies_cluster').reset_index()
+	df_users = df_users.replace(np.nan, 0)
+
+	names = []
+	for i in range(kmeans_centroid_movies):
+		name = "k"+str(i)
+		names.append(name)
+	df_users.columns= ["userId"] + names # flatten multi-index columns from pivot operation
+
+	#On calcule la moyenne des notes par utilisateur afin de ne pas se retrouver avec un clustering de type :
+	# groupe des utilisteurs qui notent bien, groupe des utilisateurs qui notent mal ,ect
+
+	moy_by_user = ratings.groupby("userId")["rating"].mean().reset_index(name="note_moy_user")
+	data =  pd.merge(df_users, moy_by_user, left_on = "userId", right_on="userId")
+
+	#data = data.drop("userId", axis=1)
+	for col in data.drop("note_moy_user", axis=1).columns:
+		data[col] = data[col]/data["note_moy_user"]
+	data = data.drop("note_moy_user", axis=1)
+	data = data.replace(0, 1)
+
+
+	return data
+	
+
+
+def generate_kmeans_inertia(n_centroids, data_kmeans_fit):
+	inertie = []
+	#n_centroids = coude_centroid_users
+	for i in range(1, n_centroids):
+		kmeans = KMeans(n_clusters=i).fit(data_kmeans_fit)
+		inertie.append(kmeans.inertia_)
+	
+	return inertie
